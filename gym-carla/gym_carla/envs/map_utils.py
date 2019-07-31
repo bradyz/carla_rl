@@ -4,6 +4,10 @@ import numpy as np
 import pygame
 
 import carla
+import cv2
+
+from . import carla_utils as cu
+
 
 
 # ==============================================================================
@@ -214,18 +218,14 @@ class MapImage(object):
 
 
 class ModuleWorld(object):
-    def __init__(self, name, client, world, town_map, hero_actor):
+    def __init__(self, name, world):
         self.name = name
 
         # World data
-        self.client = client
         self.world = world
-        self.town_map = town_map
+        self.town_map = world.get_map()
         self.actors_with_transforms = []
         self.surface_size = [0, 0]
-        # Hero actor
-        self.hero_actor = hero_actor
-        self.hero_transform = hero_actor.get_transform()
 
         self.scale_offset = [0, 0]
 
@@ -254,28 +254,6 @@ class ModuleWorld(object):
         self.hero_vehicle_image = None
         self.hero_walker_image = None
         self.hero_traffic_image = None
-
-    def get_rendered_surfaces(self):
-        return (
-            self.hero_map_image,
-            self.hero_lane_image,
-            self.hero_vehicle_image,
-            self.hero_walker_image,
-            self.hero_traffic_image,
-        )
-
-    def get_hero_measurements(self):
-        pos = self.hero_actor.get_location()
-        ori = self.hero_actor.get_transform().get_forward_vector()
-        vel = self.hero_actor.get_velocity()
-        acc = self.hero_actor.get_acceleration()
-
-        return {
-                'position': np.float32([pos.x, pos.y, pos.z]),
-                'orientation': np.float32([ori.x, ori.y]),
-                'velocity': np.float32([vel.x, vel.y, vel.z]),
-                'acceleration': np.float32([acc.x, acc.y, acc.z])
-                }
 
     def start(self):
         # Create Surfaces
@@ -316,9 +294,6 @@ class ModuleWorld(object):
     def tick(self, clock):
         actors = self.world.get_actors()
         self.actors_with_transforms = [(actor, actor.get_transform()) for actor in actors]
-
-        if self.hero_actor is not None:
-            self.hero_transform = self.hero_actor.get_transform()
 
     def _split_actors(self):
         vehicles = []
@@ -386,10 +361,13 @@ class ModuleWorld(object):
             pygame.draw.polygon(surface, color, corners)
 
     def _render_vehicles(self, vehicle_surface, self_surface, list_v, world_to_pixel):
+        self.heros = list()
+
         for v in list_v:
             color = COLOR_WHITE
 
-            if v[0].attributes['role_name'] == 'hero':
+            if 'hero' in v[0].attributes['role_name']:
+                self.heros.append(v[1])
                 surface = self_surface
                 surface = vehicle_surface
             else:
@@ -443,8 +421,19 @@ class ModuleWorld(object):
             self.traffic_light_surface, vehicles, traffic_lights,
             speed_limits, walkers)
 
-        hero_front = self.hero_transform.get_forward_vector()
-        hero_location_screen = self.map_image.world_to_pixel(self.hero_transform.location)
+    def get_local_window(self, hero_transform):
+        if not hasattr(self, 'counter'):
+            self.counter = 1
+        self.counter += 1
+        i = self.counter % len(self.heros)
+        #i = np.random.randint(len(self.heros))
+        hero_transform = self.heros[i]
+        # hero_transform = hero.get_transform()
+
+        scaled_size = self.original_surface_size * (1.0 / 1.0)
+
+        hero_front = hero_transform.get_forward_vector()
+        hero_location_screen = self.map_image.world_to_pixel(hero_transform.location)
 
         clip = [0, 0]
         clip[0] += hero_location_screen[0] - self.hero_map_surface.get_width() / 2
@@ -472,7 +461,7 @@ class ModuleWorld(object):
         self.hero_traffic_light_surface.blit(self.traffic_light_surface, (-clip[0], -clip[1]))
 
         rz = pygame.transform.rotozoom
-        angle = self.hero_transform.rotation.yaw + 90
+        angle = hero_transform.rotation.yaw + 90
         scale = 1.0
 
         rotated_map_surface = rz(self.hero_map_surface, angle, scale)
@@ -481,7 +470,7 @@ class ModuleWorld(object):
         rotated_walker_surface = rz(self.hero_walker_surface, angle, scale)
         rotated_traffic_surface = rz(self.hero_traffic_light_surface, angle, scale)
 
-        center = (display.get_width() / 2, display.get_height() / 2)
+        center = (160, 160)
         rotation_map_pivot = rotated_map_surface.get_rect(center=center)
         rotation_lane_pivot = rotated_lane_surface.get_rect(center=center)
         rotation_vehicle_pivot = rotated_vehicle_surface.get_rect(center=center)
@@ -495,17 +484,19 @@ class ModuleWorld(object):
         self.window_traffic_light_surface.blit(rotated_traffic_surface, rotation_traffic_pivot)
 
         # Save surface as rgb array
-        self.hero_map_image = surface_to_numpy(self.window_map_surface)[:,:,0]
-        self.hero_lane_image = surface_to_numpy(self.window_lane_surface)[:,:,0]
-        self.hero_vehicle_image = surface_to_numpy(self.window_vehicle_surface)[:,:,0]
-        self.hero_walker_image = surface_to_numpy(self.window_walker_surface)[:,:,0]
-        self.hero_traffic_image = surface_to_numpy(self.window_traffic_light_surface)
+        hero_map_image = surface_to_numpy(self.window_map_surface)[:,:,0]
+        hero_lane_image = surface_to_numpy(self.window_lane_surface)[:,:,0]
+        hero_vehicle_image = surface_to_numpy(self.window_vehicle_surface)[:,:,0]
+        hero_walker_image = surface_to_numpy(self.window_walker_surface)[:,:,0]
+        hero_traffic_image = surface_to_numpy(self.window_traffic_light_surface)
 
-
-class CarlaSurface(object):
-    def __init__(self, name):
-        self.name = name
-
+        return (
+            hero_map_image,
+            hero_lane_image,
+            hero_traffic_image,
+            hero_vehicle_image,
+            hero_walker_image,
+        )
 
 
 # ==============================================================================
@@ -522,7 +513,7 @@ class Wrapper(object):
     world_module = None
 
     @classmethod
-    def init(cls, client, world, carla_map, player):
+    def init(cls, world):
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
         module_manager.clear_modules()
@@ -532,7 +523,7 @@ class Wrapper(object):
         pygame.display.flip()
 
         # Set map drawer module
-        world_module = ModuleWorld(MODULE_WORLD, client, world, carla_map, player)
+        world_module = ModuleWorld(MODULE_WORLD, world)
 
         # Register Modules
         module_manager.register_module(world_module)
@@ -548,33 +539,13 @@ class Wrapper(object):
         module_manager.render(cls.display)
 
     @classmethod
-    def get_observations(cls):
-        road, lane, vehicle, pedestrian, traffic = cls.world_module.get_rendered_surfaces()
+    def get_crop(cls, hero_transform):
+        birdview = cls.world_module.get_local_window(hero_transform)
+        birdview = [x if x.ndim == 3 else x[...,None] for x in birdview]
+        birdview = np.concatenate(birdview, 2)
 
-        result = cls.world_module.get_hero_measurements()
-        result.update({
-                'road': np.uint8(road),
-                'lane': np.uint8(lane),
-                'vehicle': np.uint8(vehicle),
-                'pedestrian': np.uint8(pedestrian),
-                'traffic': np.uint8(traffic),
-                })
-
-        pygame.display.flip()
-
-        return result
+        return birdview
 
     @staticmethod
     def clear():
         module_manager.clear_modules()
-
-    @classmethod
-    def render_world(cls):
-        map_surface = cls.world_module.map_image.big_map_surface
-        map_image = np.swapaxes(pygame.surfarray.array3d(map_surface), 0, 1)
-
-        return map_image
-
-    @classmethod
-    def world_to_pixel(cls, pos):
-        return cls.world_module.map_image.world_to_pixel(pos)

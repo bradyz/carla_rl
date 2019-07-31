@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class CarlaEnv(gym.Env):
-    metadata = {'render.modes': ['human']}
-
     def __init__(self):
         self.port = 3000
         self._wrapper = CarlaWrapper(port=self.port)
@@ -41,7 +39,7 @@ class CarlaEnv(gym.Env):
         return obs, reward, done, {}
 
     def reset(self):
-        self._wrapper.init(n_pedestrians=10, n_vehicles=10)
+        self._wrapper.init(n_pedestrians=10, n_vehicles=100)
         self._wrapper.ready()
 
         obs = self._wrapper.get_observations()
