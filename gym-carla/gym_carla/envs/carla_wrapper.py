@@ -8,17 +8,7 @@ import carla
 
 COLLISION_THRESHOLD = 10
 VEHICLE = 'vehicle.ford.mustang'
-
-
-def set_sync_mode(client, sync):
-    world = client.get_world()
-
-    settings = carla.WorldSettings(
-            synchronous_mode=sync,
-            no_rendering_mode=True,
-            fixed_delta_seconds=0.1)
-
-    world.apply_settings(settings)
+SPAWN_RETRIES = 10
 
 
 class CarlaState(object):
@@ -47,10 +37,24 @@ class CarlaWrapper(object):
 
         self._state = CarlaState()
 
+    def step(self, control=None):
+        if control is not None:
+            if not isinstance(control, carla.VehicleControl):
+                vehicle_control = carla.VehicleControl()
+                vehicle_control.steer = control[0]
+                vehicle_control.throttle = control[1]
+                vehicle_control.brake = control[2]
+                vehicle_control.manual_gear_shift = False
+                vehicle_control.hand_brake = False
+
+                control = vehicle_control
+
+            self._player.apply_control(control)
+
     def reset(self, start=None):
         self._clean_up()
 
-        for _ in range(10):
+        for _ in range(SPAWN_RETRIES):
             try:
                 start = np.random.randint(len(self._map.get_spawn_points()))
                 start_pose = self._map.get_spawn_points()[start]
@@ -65,44 +69,22 @@ class CarlaWrapper(object):
         self._actor_dict['player'].append(self._player)
         self._setup_sensors()
 
-    def tick(self):
-        snapshot = self._world.get_snapshot()
+        self.start = self._world.get_snapshot().frame
+        self.frame = self._world.get_snapshot().frame
+        self.ticks = 0
+        self.wall_start = time.time()
 
-        if self._tick == 0:
-            self.start = snapshot.timestamp.frame
+    def get_frame(self):
+        self.ticks += 1
 
-        self.ticks = snapshot.timestamp.frame - self.start
-
-        self._tick += 1
-
-        return True
-
-    def get_hero_measurements(self):
-        pos = self.hero_actor.get_location()
-        ori = self.hero_actor.get_transform().get_forward_vector()
-        vel = self.hero_actor.get_velocity()
-        acc = self.hero_actor.get_acceleration()
-
-        return {
-                'position': np.float32([pos.x, pos.y, pos.z]),
-                'orientation': np.float32([ori.x, ori.y]),
-                'velocity': np.float32([vel.x, vel.y, vel.z]),
-                'acceleration': np.float32([acc.x, acc.y, acc.z])
+        frame = self._world.get_snapshot().frame
+        result = {
+                'delta_frames': frame - self.frame,
                 }
 
-    def apply_control(self, control=None):
-        if control is not None:
-            if not isinstance(control, carla.VehicleControl):
-                vehicle_control = carla.VehicleControl()
-                vehicle_control.steer = control[0]
-                vehicle_control.throttle = control[1]
-                vehicle_control.brake = control[2]
-                vehicle_control.manual_gear_shift = False
-                vehicle_control.hand_brake = False
+        self.frame = frame
 
-                control = vehicle_control
-
-            self._player.apply_control(control)
+        return result
 
     def _setup_sensors(self):
         """

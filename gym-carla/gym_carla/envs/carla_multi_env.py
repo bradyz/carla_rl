@@ -8,8 +8,8 @@ import cv2
 
 import carla
 
-from .carla_wrapper import CarlaWrapper, set_sync_mode
-from .carla_utils import WEATHERS, TRAIN_WEATHERS, crop_birdview, visualize_birdview
+from . import carla_utils as cu
+from .carla_wrapper import CarlaWrapper
 from .map_utils import Wrapper as map_utils
 
 
@@ -21,9 +21,10 @@ class CarlaMultiEnv(gym.Env):
         self._map = self._world.get_map()
         self._blueprints = self._world.get_blueprint_library()
 
-        set_sync_mode(self._client, False)
+        cu.set_sync_mode(self._client, False)
 
         self._carla_seed = 0
+        self._wall_start = time.time()
         self._heroes = list()
         self._actor_dict = collections.defaultdict(list)
 
@@ -37,12 +38,11 @@ class CarlaMultiEnv(gym.Env):
         infos = list()
 
         for i, wrapper in enumerate(self._heroes):
-            wrapper.tick()
-            wrapper.apply_control(actions[i])
+            wrapper.step(actions[i])
 
             reward = -int(wrapper._state.collided)
             done = wrapper._state.collided
-            info = dict()
+            info = wrapper.get_frame()
 
             if done:
                 wrapper.reset()
@@ -58,8 +58,10 @@ class CarlaMultiEnv(gym.Env):
 
         for wrapper in self._heroes:
             map_utils.tick()
-            location = wrapper._player.get_transform().location
+
             observation = map_utils.get_crop(wrapper._player.get_transform())
+            observation = cu.crop_birdview(observation)
+            # observation = cv2.resize(observation, (84, 84), interpolation=cv2.INTER_NEAREST)
             observations.append(observation)
 
         return observations
@@ -89,8 +91,7 @@ class CarlaMultiEnv(gym.Env):
         birdviews = list()
 
         for i, birdview in enumerate(self.get_observations()):
-            birdview = crop_birdview(birdview)
-            birdview = visualize_birdview(birdview)
+            birdview = cu.visualize_birdview(birdview)
             birdview = cv2.cvtColor(birdview, cv2.COLOR_RGB2BGR)
             birdviews.append(birdview)
 
@@ -182,9 +183,7 @@ class CarlaMultiEnv(gym.Env):
 
     def _set_weather(self, weather_string):
         if weather_string == 'random':
-            weather = np.random.choice(WEATHERS)
-        elif weather_string in TRAIN_WEATHERS:
-            weather = TRAIN_WEATHERS[weather_string]
+            weather = np.random.choice(cu.WEATHERS)
         else:
             weather = weather_string
 
@@ -200,6 +199,7 @@ class CarlaMultiEnv(gym.Env):
             self._actor_dict[actor_type].clear()
 
         self._actor_dict.clear()
+        self._wall_start = time.time()
 
     def __del__(self):
         self._clean_up()

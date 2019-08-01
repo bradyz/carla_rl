@@ -1,5 +1,7 @@
 import numpy as np
 
+import carla
+
 from carla import ColorConverter
 from carla import WeatherParameters
 
@@ -47,6 +49,16 @@ COLORS = [
 TOWNS = ['Town01', 'Town02', 'Town03', 'Town04']
 VEHICLE_NAME = 'vehicle.ford.mustang'
 
+
+def set_sync_mode(client, sync):
+    world = client.get_world()
+
+    settings = carla.WorldSettings(
+            synchronous_mode=sync,
+            no_rendering_mode=True,
+            fixed_delta_seconds=0.1)
+
+    world.apply_settings(settings)
 
 
 def carla_img_to_np(carla_img):

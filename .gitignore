@@ -1,2 +1,4 @@
 *.sw*
 *.pyc
+
+gym-carla/gym_carla.egg-info/
