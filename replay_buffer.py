@@ -13,7 +13,8 @@ class MultiReplayBuffer(object):
         self.new_states = np.zeros([capacity] + OBSERVATION_SHAPE, dtype=np.float32)
         self.dones = np.zeros([capacity] + OBSERVATION_SHAPE, dtype=np.int32)
 
-        self.valid = list()
+        self.valid = set()
+        self.indices = list()
         self.spot = 0
         self.capacity = capacity
 
@@ -24,11 +25,14 @@ class MultiReplayBuffer(object):
             self.rewards[self.spot] = rewards[i]
             self.new_states[self.spot] = new_states[i]
 
-            self.valid.append(self.spot)
+            if self.spot not in self.indices:
+                self.valid.add(self.spot)
+                self.indices.append(self.spot)
+
             self.spot = (self.spot + 1) % self.capacity
 
     def sample(self, batch_size):
-        spots = np.random.choice(self.valid, batch_size)
+        spots = np.random.choice(self.indices, batch_size)
 
         states = self.states[spots]
         actions = self.actions[spots]

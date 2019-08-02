@@ -17,6 +17,7 @@ class CarlaMultiEnv(gym.Env):
     def __init__(self, town='Town01', port=3000, n_heroes=2):
         self._client = carla.Client('localhost', port)
         self._client.set_timeout(30.0)
+
         self._world = self._client.load_world(town)
         self._map = self._world.get_map()
         self._blueprints = self._world.get_blueprint_library()
