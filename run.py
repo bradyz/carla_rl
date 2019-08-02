@@ -4,6 +4,7 @@ import gym
 import gym_carla
 
 import tqdm
+import numpy as np
 
 from replay_buffer import MultiReplayBuffer
 
@@ -18,26 +19,31 @@ OBSERVATION_SHAPE = [192, 192, 7]
 N_ACTIONS = 3
 
 
-class DummyAgent(object):
-    def __call__(self, states, infos=None):
-        return [(0.15, 0.4, 0.0) for _ in states]
+def preprocess(states):
+    import torch
+
+    x = np.float32(states).transpose(0, 3, 1, 2)
+    x = torch.from_numpy(x).cuda()
+
+    return x
 
 
 def main(args):
     env = gym.make('Carla-v0', n_heroes=N_HEROES, port=PORT)
-    agent = DummyAgent()
     replay = MultiReplayBuffer(CAPACITY)
 
     from sac import SAC
 
     updates = 0
     trainer = SAC(OBSERVATION_SHAPE, N_ACTIONS, args)
+    agent = trainer.policy
 
     for _ in tqdm.tqdm(range(10)):
         states = env.reset(n_vehicles=N_VEHICLES, n_pedestrians=N_PEDESTRIANS)
 
         for i in tqdm.tqdm(range(2000)):
-            actions = agent(states)
+            _, _, actions = agent.sample(preprocess(states))
+            actions = actions.detach().cpu().numpy()
             new_states, rewards, dones, infos = env.step(actions)
 
             replay.add(states, actions, rewards, new_states, dones)

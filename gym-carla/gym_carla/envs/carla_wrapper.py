@@ -41,9 +41,9 @@ class CarlaWrapper(object):
         if control is not None:
             if not isinstance(control, carla.VehicleControl):
                 vehicle_control = carla.VehicleControl()
-                vehicle_control.steer = control[0]
-                vehicle_control.throttle = control[1]
-                vehicle_control.brake = control[2]
+                vehicle_control.steer = float(control[0])
+                vehicle_control.throttle = float(control[1])
+                vehicle_control.brake = float(control[2])
                 vehicle_control.manual_gear_shift = False
                 vehicle_control.hand_brake = False
 

@@ -34,10 +34,10 @@ class MultiReplayBuffer(object):
     def sample(self, batch_size):
         spots = np.random.choice(self.indices, batch_size)
 
-        states = self.states[spots]
+        states = self.states[spots].transpose(0, 3, 1, 2)
         actions = self.actions[spots]
         rewards = self.rewards[spots]
-        new_states = self.new_states[spots]
+        new_states = self.new_states[spots].transpose(0, 3, 1, 2)
         dones = self.dones[spots]
 
         return states, actions, rewards, new_states, dones

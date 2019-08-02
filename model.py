@@ -25,27 +25,36 @@ def conv_relu(channels_in, channels_out, filter_size, stride):
 def conv_base(input_shape):
     return nn.Sequential(
             conv_relu(input_shape[2], 8, 8, 4),
-            conv_relu(8, 16, 4, 2),
-            conv_relu(16, 32, 4, 2))
+            conv_relu(8, 16, 5, 4),
+            conv_relu(16, 32, 5, 2))
 
 
-def fc_base(input_dim, hidden_dim):
-    return nn.Sequential(
+def fc_base(input_dim, hidden_dim, last=True):
+    layers = [
             nn.Linear(input_dim, hidden_dim),
             nn.LeakyReLU(inplace=True),
-            nn.Linear(hidden_dim, 1))
+            ]
+    if last:
+        layers.append(nn.Linear(hidden_dim, 1))
+
+    return nn.Sequential(*layers)
 
 
 def get_shape(layer, input_shape):
     """
     Assunes input_shape is [h, w, c].
     """
-    return layer(torch.zeros([1] + input_shape[::-1])).shape
+    result = 1
+
+    for mult in  layer(torch.zeros([1] + input_shape[::-1])).shape:
+        result *= mult
+
+    return result
 
 
 def ValueNetwork(input_shape, hidden_dim):
     conv = conv_base(input_shape)
-    fc = fc_base(get_shape(conv, input_shape)[1], hidden_dim)
+    fc = fc_base(get_shape(conv, input_shape), hidden_dim)
 
     return nn.Sequential(conv, fc)
 
@@ -56,22 +65,22 @@ class QNetwork(nn.Module):
 
         self.conv1 = conv_base(input_shape)
         self.fc1 = fc_base(
-                get_shape(self.conv1, input_shape)[1] + num_actions,
-                hidden_dim)
+                get_shape(self.conv1, input_shape) + num_actions,
+                hidden_dim, last=False)
 
         self.conv2 = conv_base(input_shape)
         self.fc2 = fc_base(
-                get_shape(self.conv2, input_shape)[1] + num_actions,
-                hidden_dim)
+                get_shape(self.conv2, input_shape) + num_actions,
+                hidden_dim, last=False)
 
         self.apply(weights_init_)
 
     def forward(self, state, action):
-        x1 = self.conv1(state)
+        x1 = self.conv1(state).view(state.shape[0], -1)
         x1 = torch.cat([x1, action], 1)
         x1 = self.fc1(x1)
 
-        x2 = self.conv2(state)
+        x2 = self.conv2(state).view(state.shape[0], -1)
         x2 = torch.cat([x2, action], 1)
         x2 = self.fc2(x2)
 
@@ -80,15 +89,10 @@ class QNetwork(nn.Module):
 
 class GaussianPolicy(nn.Module):
     def __init__(self, input_shape, num_actions, hidden_dim):
-        super(GaussianPolicy, self).__init__()
+        super().__init__()
 
-        self.linear1 = nn.Linear(input_shape, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-
-        self.conv1 = conv_base(input_shape)
-        self.fc1 = fc_base(
-                get_shape(self.conv1, input_shape)[1] + num_actions,
-                hidden_dim)
+        self.conv = conv_base(input_shape)
+        self.fc = fc_base(get_shape(self.conv, input_shape), hidden_dim, last=False)
 
         self.mean_linear = nn.Linear(hidden_dim, num_actions)
         self.log_std_linear = nn.Linear(hidden_dim, num_actions)
@@ -96,7 +100,9 @@ class GaussianPolicy(nn.Module):
         self.apply(weights_init_)
 
     def forward(self, state):
-        x = self.fc(self.conv(state))
+        x = self.conv(state)
+        x = x.view(x.shape[0], -1)
+        x = self.fc(x)
 
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
