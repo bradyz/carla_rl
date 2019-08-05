@@ -66,7 +66,7 @@ class CarlaMultiEnv(gym.Env):
 
             observation = map_utils.get_crop(wrapper._player.get_transform())
             observation = cu.crop_birdview(observation)
-            # observation = cv2.resize(observation, (84, 84), interpolation=cv2.INTER_NEAREST)
+            observation = cv2.resize(observation, (84, 84), interpolation=cv2.INTER_NEAREST)
             observations.append(observation)
 
         return observations

@@ -1,7 +1,7 @@
 import numpy as np
 
 
-OBSERVATION_SHAPE = [192, 192, 7]
+OBSERVATION_SHAPE = [84, 84, 7]
 ACTION_SHAPE = [3]
 
 

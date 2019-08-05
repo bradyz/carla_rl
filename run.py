@@ -10,12 +10,12 @@ from replay_buffer import MultiReplayBuffer
 
 
 N_HEROES = 16
-CAPACITY = 10000
+CAPACITY = 100000
 PORT = 3000
 N_VEHICLES = 50
 N_PEDESTRIANS = 25
 BATCH_SIZE = 128
-OBSERVATION_SHAPE = [192, 192, 7]
+OBSERVATION_SHAPE = [84, 84, 7]
 N_ACTIONS = 3
 
 
@@ -44,11 +44,11 @@ def main(args):
     # agent.load_state_dict(torch.load('log/latest.t7'))
 
     for _ in tqdm.tqdm(range(1000)):
-        states = env.reset(n_vehicles=N_VEHICLES, n_pedestrians=N_PEDESTRIANS)
         totals = [0 for _ in range(N_HEROES)]
         finished = list()
+        states = env.reset(n_vehicles=N_VEHICLES, n_pedestrians=N_PEDESTRIANS)
 
-        for i in tqdm.tqdm(range(100)):
+        for i in tqdm.tqdm(range(1000), desc='Experiences'):
             _, _, actions = agent.sample(preprocess(states))
             actions = actions.detach().cpu().numpy()
             new_states, rewards, dones, infos = env.step(actions)
@@ -65,23 +65,24 @@ def main(args):
 
             states = new_states
 
-            if len(replay) > BATCH_SIZE:
-                loss_q1, loss_q2, p_loss, a_loss, a_tlog = trainer.update_parameters(replay, args.batch_size, updates)
-                scalars = {
-                        'loss_q1': loss_q1,
-                        'loss_q2': loss_q2,
-                        'p_loss': p_loss,
-                        'a_loss': a_loss,
-                        'a_tlog': a_tlog,
-                        }
-                bzu.log.scalar(is_train=True, **scalars)
-                updates += 1
-
         for j in range(N_HEROES):
-            totals[i] += rewards[j]
-            finished.append(totals[i])
+            totals[j] += rewards[j]
+            finished.append(totals[j])
 
         bzu.log.scalar(is_train=True, **{'cumulative': np.mean(finished)})
+
+        for i in tqdm.tqdm(range(1000), desc='Batch'):
+            loss_q1, loss_q2, p_loss, a_loss, a_tlog = trainer.update_parameters(replay, args.batch_size, updates)
+            scalars = {
+                    'loss_q1': loss_q1,
+                    'loss_q2': loss_q2,
+                    'p_loss': p_loss,
+                    'a_loss': a_loss,
+                    'a_tlog': a_tlog,
+                    }
+            bzu.log.scalar(is_train=True, **scalars)
+            updates += 1
+
         bzu.log.end_epoch(agent)
 
 

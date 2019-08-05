@@ -1,0 +1,6 @@
+08/05/19 16:40:57 INFO	train_cumulative: 2.91	n: 1	min: 2.91	max: 2.91	std: 0.00
+08/05/19 16:40:57 INFO	n: 1000	min: 0.00	max: 0.00	train_a_loss: 0.00	std: 0.00
+08/05/19 16:40:57 INFO	n: 1000	min: 0.20	max: 0.20	std: 0.00	train_a_tlog: 0.20
+08/05/19 16:40:57 INFO	train_loss_q1: 0.23	n: 1000	min: 0.01	max: 52.26	std: 1.85
+08/05/19 16:40:57 INFO	n: 1000	min: 0.01	max: 46.79	std: 1.69	train_loss_q2: 0.22
+08/05/19 16:40:57 INFO	n: 1000	train_p_loss: -1.08	max: 4.34	min: -1.82	std: 0.48

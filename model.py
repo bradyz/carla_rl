@@ -25,7 +25,7 @@ def conv_relu(channels_in, channels_out, filter_size, stride):
 def conv_base(input_shape):
     return nn.Sequential(
             conv_relu(input_shape[2], 8, 8, 4),
-            conv_relu(8, 16, 5, 4),
+            conv_relu(8, 16, 5, 2),
             conv_relu(16, 32, 5, 2))
 
 
