@@ -18,11 +18,13 @@ class CarlaMultiEnv(gym.Env):
         self._client = carla.Client('localhost', port)
         self._client.set_timeout(30.0)
 
+        cu.set_sync_mode(self._client, False)
+
         self._world = self._client.load_world(town)
         self._map = self._world.get_map()
         self._blueprints = self._world.get_blueprint_library()
 
-        cu.set_sync_mode(self._client, False)
+        cu.set_sync_mode(self._client, True)
 
         self._carla_seed = 0
         self._wall_start = time.time()
@@ -33,17 +35,19 @@ class CarlaMultiEnv(gym.Env):
             self._heroes.append(CarlaWrapper(self._client, hero_num=i))
 
     def step(self, actions):
+        self._world.tick()
+
         observations = self.get_observations()
         rewards = list()
         dones = list()
         infos = list()
 
         for i, wrapper in enumerate(self._heroes):
-            wrapper.step(actions[i])
+            state = wrapper.step(actions[i])
 
-            reward = -int(wrapper._state.collided)
+            reward = state.velocity / 5.0 + -int(wrapper._state.collided)
             done = wrapper._state.collided
-            info = wrapper.get_frame()
+            info = wrapper._state.tick
 
             if done:
                 wrapper.reset()
@@ -99,6 +103,15 @@ class CarlaMultiEnv(gym.Env):
         for i, birdview in enumerate(birdviews):
             cv2.imshow(str(i), birdview)
             cv2.waitKey(1)
+
+    def _set_weather(self, weather_string):
+        if weather_string == 'random':
+            weather = np.random.choice(cu.WEATHERS)
+        else:
+            weather = weather_string
+
+        self.weather = weather
+        self._world.set_weather(weather)
 
     def _spawn_vehicles(self, n_vehicles):
         SpawnActor = carla.command.SpawnActor
@@ -182,15 +195,6 @@ class CarlaMultiEnv(gym.Env):
             controller.go_to_location(self._world.get_random_location_from_navigation())
             controller.set_max_speed(1 + random.random())
 
-    def _set_weather(self, weather_string):
-        if weather_string == 'random':
-            weather = np.random.choice(cu.WEATHERS)
-        else:
-            weather = weather_string
-
-        self.weather = weather
-        self._world.set_weather(weather)
-
     def _clean_up(self):
         for controller in self._actor_dict['ped_controller']:
             controller.stop()
@@ -204,3 +208,5 @@ class CarlaMultiEnv(gym.Env):
 
     def __del__(self):
         self._clean_up()
+
+        cu.set_sync_mode(self._client, False)

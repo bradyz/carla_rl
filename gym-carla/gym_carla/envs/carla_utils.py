@@ -56,7 +56,7 @@ def set_sync_mode(client, sync):
     settings = carla.WorldSettings(
             synchronous_mode=sync,
             no_rendering_mode=True,
-            fixed_delta_seconds=0.1)
+            fixed_delta_seconds=0.5)
 
     world.apply_settings(settings)
 

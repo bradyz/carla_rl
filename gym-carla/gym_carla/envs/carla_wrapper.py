@@ -11,9 +11,20 @@ VEHICLE = 'vehicle.ford.mustang'
 SPAWN_RETRIES = 10
 
 
+def _carla_norm(v):
+    result = 0.0
+
+    for attr in ['x', 'y', 'z']:
+        if hasattr(v, attr):
+            result += getattr(v, attr) ** 2
+
+    return np.sqrt(result)
+
+
 class CarlaState(object):
     def __init__(self):
         self.tick = 0
+        self.velocity = -1.0
 
         self.collided = False
         self.collided_frame_number = -1
@@ -51,6 +62,12 @@ class CarlaWrapper(object):
 
             self._player.apply_control(control)
 
+        self._state.tick += 1
+        self._state.velocity = _carla_norm(self._player.get_velocity())
+        self._state.frame = self._world.get_snapshot().frame - self.start
+
+        return self._state
+
     def reset(self, start=None):
         self._clean_up()
 
@@ -73,18 +90,6 @@ class CarlaWrapper(object):
         self.frame = self._world.get_snapshot().frame
         self.ticks = 0
         self.wall_start = time.time()
-
-    def get_frame(self):
-        self.ticks += 1
-
-        frame = self._world.get_snapshot().frame
-        result = {
-                'delta_frames': frame - self.frame,
-                }
-
-        self.frame = frame
-
-        return result
 
     def _setup_sensors(self):
         """

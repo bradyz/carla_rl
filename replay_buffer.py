@@ -9,7 +9,7 @@ class MultiReplayBuffer(object):
     def __init__(self, capacity):
         self.states = np.zeros([capacity] + OBSERVATION_SHAPE, dtype=np.float32)
         self.actions = np.zeros([capacity] + ACTION_SHAPE, dtype=np.float32)
-        self.rewards = np.zeros([capacity], dtype=np.int32)
+        self.rewards = np.zeros([capacity], dtype=np.float32)
         self.new_states = np.zeros([capacity] + OBSERVATION_SHAPE, dtype=np.float32)
         self.dones = np.zeros([capacity] + OBSERVATION_SHAPE, dtype=np.int32)
 

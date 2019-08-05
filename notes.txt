@@ -1,0 +1,10 @@
+sensors -
+    rotation - heading
+    differential gps
+    left right front RGB
+    lidar
+
+waypoints for transfer learning not very smooth
+gps is not that good
+think of how to train on argoverse
+sample data incoming

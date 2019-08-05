@@ -9,12 +9,12 @@ import numpy as np
 from replay_buffer import MultiReplayBuffer
 
 
-N_HEROES = 4
+N_HEROES = 16
 CAPACITY = 10000
 PORT = 3000
 N_VEHICLES = 50
 N_PEDESTRIANS = 25
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 OBSERVATION_SHAPE = [192, 192, 7]
 N_ACTIONS = 3
 
@@ -33,30 +33,60 @@ def main(args):
     replay = MultiReplayBuffer(CAPACITY)
 
     from sac import SAC
+    import torch
+    import bz_utils as bzu
+
+    bzu.log.init('log_v1')
 
     updates = 0
     trainer = SAC(OBSERVATION_SHAPE, N_ACTIONS, args)
     agent = trainer.policy
+    # agent.load_state_dict(torch.load('log/latest.t7'))
 
-    for _ in tqdm.tqdm(range(10)):
+    for _ in tqdm.tqdm(range(1000)):
         states = env.reset(n_vehicles=N_VEHICLES, n_pedestrians=N_PEDESTRIANS)
+        totals = [0 for _ in range(N_HEROES)]
+        finished = list()
 
-        for i in tqdm.tqdm(range(2000)):
+        for i in tqdm.tqdm(range(100)):
             _, _, actions = agent.sample(preprocess(states))
             actions = actions.detach().cpu().numpy()
             new_states, rewards, dones, infos = env.step(actions)
 
+            for j in range(N_HEROES):
+                totals[j] += rewards[j]
+
+                if dones[j]:
+                    finished.append(totals[j])
+                    totals[j] = 0
+
+            # env.render()
             replay.add(states, actions, rewards, new_states, dones)
 
             states = new_states
 
             if len(replay) > BATCH_SIZE:
-                trainer.update_parameters(replay, args.batch_size, updates)
+                loss_q1, loss_q2, p_loss, a_loss, a_tlog = trainer.update_parameters(replay, args.batch_size, updates)
+                scalars = {
+                        'loss_q1': loss_q1,
+                        'loss_q2': loss_q2,
+                        'p_loss': p_loss,
+                        'a_loss': a_loss,
+                        'a_tlog': a_tlog,
+                        }
+                bzu.log.scalar(is_train=True, **scalars)
                 updates += 1
+
+        for j in range(N_HEROES):
+            totals[i] += rewards[j]
+            finished.append(totals[i])
+
+        bzu.log.scalar(is_train=True, **{'cumulative': np.mean(finished)})
+        bzu.log.end_epoch(agent)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--policy', default="Gaussian")
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--tau', type=float, default=0.005, help='target smoothing coefficient')
